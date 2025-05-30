@@ -3,3 +3,44 @@
    sequential execution is only deviated from when an interrupt event occurs.
 
 ...
+
+//////////////////////////////////////////////////////////////////////////////////////////////
+
+Tipos de datos definidos en 'app.c':
+
+- Tipo struct 'task_cfg_t' que contiene dos punteros a función (*task_init y *task_update) y un
+puntero a parámetros (*parameters), conteniendo así la información necesaria para configurar una
+tarea.
+
+- Tipo struct 'task_dta_t' que contiene datos adicionales sobre una tarea, en este caso únicamente
+el WCET (Worst-case execution time), de tipo 'uint32_t'.
+
+- Luego, se define una constante del tipo struct 'task_cfg_t' llamada 'task_cfg_list', configurada
+con las funciones de inicialización (task_X_init) y actualización (task_X_update) de las tres
+tareas, así como 'NULL' para los paramétros (por lo que estos no se utilizan en este caso).
+
+- Luego, se define 'TASK_QTY', la cantidad total de tareas, que se obtiene dividiendo el tamaño de
+'task_cfg_list' por el tamaño del tipo de dato 'task_cfg_t'; esperamos así que TASK_QTY = 3.
+
+- Continuamos con una serie de variables globales del tipo 'uint32_t' (g_app_cnt, g_app_time_us
+y g_app_tick_cnt), así como una constante del tipo struct 'task_dta_t' llamada 'task_dta_list', con
+TASK_QTY = 3 entradas.
+
+Funciones definidas en 'app.c':
+
+- 'void app_init(void)': imprime algunas cosas por consola, inicializa 'g_app_cnt' al valor de la
+constante G_APP_CNT_INI = 0u1, y tiene un ciclo for con el fin de ejecutar las funciones de inicialización
+de cada tarea (task_sensor_init, task_system_init y task_sensor_init).
+
+- 'void app_update(void)': evalúa la condición 'G_APP_TICK_CNT_INI < g_app_tick_cnt' para saber si es
+hora de ejecutar una cierta tarea; si esto se cumple, decrementa en 1 el contador 'g_app_tick_cnt' y aumenta
+en 1 el contador 'g_app_cnt', ejecutando la función de actualización de la tarea (task_X_update) y seteando
+'g_app_time_us' para poder contar el tiempo de ejecución de la misma.
+Finalmente, si el tiempo de ejecución final de la tarea supera el WCET actual (que comienza siendo 0)
+reemplaza dinámicamente su valor a dicho tiempo de ejecución.
+
+- 'void HAL_SYSTICK_Callback(void)': es el callback 'SYSTICK' del programa, es decir es una interrupción
+que se ejecuta cada vez que el sistema comunica el paso de un TICK, incrementa una serie de contadores que
+se utilizan para la ejecución del resto de tareas.
+
+

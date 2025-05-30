@@ -5,3 +5,40 @@
    Non-Blocking Code
 
 ...
+
+//////////////////////////////////////////////////////////////////////////////////////////////
+
+Tipos de datos definidos en 'task_menu_attribute.h':
+
+- Se definen dos tipos enum 'task_menu_ev_t' y 'task_menu_st_t' que poseen la lista de eventos que
+excitan al menú, y la lista de estados del menú, respectivamente.
+
+- Tipo struct 'task_menu_dta_t', que contiene datos del menú (una variable 'uint32_t' tick,
+el estado actual del sistema (tipo 'task_menu_st_t'), el evento que está siendo recibido (tipo
+'task_menu_ev_t', y una 'flag' (valor booleano)).
+
+// -----------------------------------------------------------------
+
+Estructuras y funciones definidas en 'task_menu.c':
+
+- Se define una variable del tipos struct 'task_menu_dta_t' llamada 'task_menu_dta', que posee
+una sola entrada (pues solo consideramos 1 único menu). Esto inicializa al menú con los
+valores '{DEL_MEN_XX_MIN, ST_MEN_XX_IDLE, EV_MEN_ENT_IDLE, false}'.
+
+- Se definen dos funciones 'void task_menu_init(void *parameters)' y 'void task_menu_update(void *parameters)',
+que corresponden, respectivamente, a las funciones de inicialización y actualización para el modelo de menú.
+
+- En la primera, se imprimen datos por consola y se inicializa 'g_task_menu_cnt' (g_task_menu_cnt = G_TASK_MEN_CNT_INI).
+Además, se llama a 'init_queue_event_task_menu()' (declarada en 'task_menu_interface.c').
+
+- En la segunda ('task_menu_update'):
+	- Se actualiza (incrementa) el contador 'g_task_menu_cnt'.
+	- Se marca 'b_time_update_required' como 'true' si hay ticks pendientes por procesar (protegido contra interrupciones).
+	- Bucle 'while(b_time_update_required)', se ejecuta mientras haya ticks pendientes por procesar (procesando uno por vuelta).
+	- Se actualiza el puntero ('p_task_menu_dta').
+	- Se consulta si hay algún evento disparado asociado al menu ('any_event_task_menu()'), y de ser así
+	  se asigna dicho evento (obtenido mediante 'get_event_task_menu()') al campo event de 'p_task_menu_dta'
+	  ('p_task_menu_dta->event').
+	- Luego, viene la implementación de la máquina o diagrama de estados en sí:
+	  - Se hace un switch en base al parámetro 'p_task_menu_dta->state' (estado actual del menú) y se implementa la
+	    lógica a seguir para cada estado.

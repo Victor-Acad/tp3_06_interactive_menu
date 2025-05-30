@@ -2,3 +2,43 @@
    Non-Blocking & Update By Time Code -> Sensor Modeling
   
 ...
+
+//////////////////////////////////////////////////////////////////////////////////////////////
+
+Tipos de datos definidos en 'task_sensor_attribute.h':
+
+- Se definen dos tipos enum 'task_sensor_ev_t' y 'task_sensor_st_t' que poseen la lista de eventos y
+estados asociados al sensor, respectivamente.
+
+- Se define un tipo enum 'task_sensor_id_t' que posee el identificador del sensor.
+
+- Tipo struct 'task_sensor_cfg_t' que contiene una serie de atributos de configuración del sensor, como
+su identificador, el pin asociado, así como una serie de eventos a producir.
+
+- Tipo struct 'task_sensor_dta_t' que contiene datos adicionales del sensor, como los estados y eventos
+asociados al botón.
+
+// -----------------------------------------------------------------
+
+Estructuras y funciones definidas en 'task_sensor.c':
+
+- Se definen dos variables de los tipos struct 'task_sensor_cfg_t' y 'task_sensor_dta_t', llamadas
+'task_sensor_cfg_list' y 'task_sensor_dta_list' respectivamente.
+
+- Se definen dos funciones 'void task_sensor_init(void *parameters)' y 'void task_sensor_update(void *parameters)',
+que corresponden, respectivamente, a las funciones de inicialización y actualización para el modelo de sensor.
+
+- En la primera, se imprimen datos por consola y se inicializa 'g_task_sensor_cnt' (g_task_sensor_cnt = G_TASK_SEN_CNT_INIT).
+
+- En la segunda, se evalúa el estado de la variable booleana 'b_time_update_required', para saber si el sensor debe
+actualizar su estado o no. Esto último se hace en base al estado actual del botón utilizándose una estructura del tipo
+switch-case para evaluar las cuatro opciones. Vemos que en los estados 'ST_BTN_XX_FALLING' y 'ST_BTN_XX_RISING' no sucede
+nada, mientras que en los estados 'ST_BTN_XX_UP' y 'ST_BTN_XX_DOWN' se disparan los eventos 'signal_down' y 'signal_up'
+declarados para esta tarea específica (sensor) en 'task_sensor_cfg_list', actualizándose también el estado del sensor si
+es necesario.
+	Por ejemplo, si el botón se pulsa, pasa al estado 'ST_BTN_XX_DOWN'; se revisa entonces si sucede el evento
+'EV_BTN_XX_UP' (el botón se suelta), y en caso de ser verdadero, se dispara el evento 'signal_down' y se cambia al estado
+'ST_BTN_XX_DOWN'.
+	Resumidamente, constituye la implementación de un diagrama de estados para el modelo del sensor (botón).
+
+
