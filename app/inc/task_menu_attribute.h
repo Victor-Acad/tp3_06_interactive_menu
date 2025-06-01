@@ -44,6 +44,7 @@ extern "C" {
 #endif
 
 /********************** inclusions *******************************************/
+#include "motor_attribute.h"
 
 /********************** macros ***********************************************/
 
@@ -70,8 +71,14 @@ typedef enum task_menu_ev {EV_MEN_ENT_IDLE,
 						   EV_MEN_ESC_ACTIVE} task_menu_ev_t;
 
 /* State of Task Menu */
-typedef enum task_menu_st {ST_MEN_XX_IDLE,
-						   ST_MEN_XX_ACTIVE} task_menu_st_t;
+typedef enum task_menu_st {ST_MEN_XX_MAIN,
+						   ST_MEN_XX_MOTOR,
+						   ST_MEN_XX_POWER,
+						   ST_MEN_XX_SPEED,
+						   ST_MEN_XX_SPIN,
+						   ST_MEN_XX_POWER_OPT,
+						   ST_MEN_XX_SPEED_OPT,
+						   ST_MEN_XX_SPIN_OPT} task_menu_st_t;
 
 typedef struct
 {
@@ -79,6 +86,8 @@ typedef struct
 	task_menu_st_t	state;
 	task_menu_ev_t	event;
 	bool			flag;
+	motor_t			motors[MAX_MOTORS];
+	uint8_t			current_motor;
 } task_menu_dta_t;
 
 /********************** external data declaration ****************************/
