@@ -91,6 +91,7 @@ void task_menu_init(void *parameters)
 	task_menu_st_t	state;
 	task_menu_ev_t	event;
 	bool b_event;
+	char menu_str[16];
 
 	/* Print out: Task Initialized */
 	LOGGER_LOG("  %s is running - %s\r\n", GET_NAME(task_menu_init), p_task_menu);
@@ -116,7 +117,12 @@ void task_menu_init(void *parameters)
 	b_event = p_task_menu_dta->flag;
 	LOGGER_LOG("   %s = %s\r\n", GET_NAME(b_event), (b_event ? "true" : "false"));
 
-	/* Print out: Initial motor states */
+	cycle_counter_init();
+	cycle_counter_reset();
+
+	displayInit( DISPLAY_CONNECTION_GPIO_4BITS );
+
+	/* Print out motor states in console */
 	for (uint8_t i = 0; i < MAX_MOTORS; i++) {
 	    motor_t *m = &p_task_menu_dta->motors[i];
 	    LOGGER_LOG("   motor[%u]: power = %s, speed = %u, spin = %s\r\n",
@@ -127,16 +133,22 @@ void task_menu_init(void *parameters)
 				   );
 	}
 
-	cycle_counter_init();
-	cycle_counter_reset();
-
-	displayInit( DISPLAY_CONNECTION_GPIO_4BITS );
-
-    displayCharPositionWrite(0, 0);
-	displayStringWrite("TdSE Bienvenidos");
-
-	displayCharPositionWrite(0, 1);
-	displayStringWrite("Test Nro: ");
+	/* Initialize motors and print out states */
+	/* Hardcoded for <= 2 motors. */
+	for (uint8_t i = 0; i < MAX_MOTORS; i++) {
+		if (i < 2)
+		{
+			motor_t *m = &p_task_menu_dta->motors[i];
+			snprintf(menu_str, sizeof(menu_str), "M%u: %s,%u,%s", (i+1), (m->power == ON ? "ON" : "OFF"), m->speed, (m->spin == LEFT ? "LEFT" : "RIGHT"));
+			displayCharPositionWrite(0, i);
+			displayStringWrite(menu_str);
+		}
+		else
+		{
+			displayCharPositionWrite(0, 0);
+			displayStringWrite("Too many motors.");
+		}
+	}
 
 	g_task_menu_tick_cnt = G_TASK_MEN_TICK_CNT_INI;
 }
@@ -145,7 +157,8 @@ void task_menu_update(void *parameters)
 {
 	task_menu_dta_t *p_task_menu_dta;
 	bool b_time_update_required = false;
-	char menu_str[8];
+	char menu_str[16];
+	motor_t *m;
 
 	/* Update Task Menu Counter */
 	g_task_menu_cnt++;
@@ -183,10 +196,6 @@ void task_menu_update(void *parameters)
 		}
 		else
 		{
-			snprintf(menu_str, sizeof(menu_str), "%lu", (g_task_menu_cnt/1000ul));
-			displayCharPositionWrite(10, 1);
-			displayStringWrite(menu_str);
-
 			p_task_menu_dta->tick = DEL_MEN_XX_MAX;
 
 			if (true == any_event_task_menu())
@@ -195,17 +204,26 @@ void task_menu_update(void *parameters)
 				p_task_menu_dta->event = get_event_task_menu();
 			}
 
+			m = &p_task_menu_dta->motors[p_task_menu_dta->current_motor];
+
+			/* The display writes can be optimized a lot, */
+			/* since the same instructions are repeated.  */
+
 			switch (p_task_menu_dta->state)
 			{
-				// TODO: Replace debug LOGGER_LOG instances with actual writes to the display.
-
 				case ST_MEN_XX_MAIN:
 
 					if ((true == p_task_menu_dta->flag) && (EV_MEN_ENT_ACTIVE == p_task_menu_dta->event))
 					{
 						p_task_menu_dta->flag = false;
 						p_task_menu_dta->state = ST_MEN_XX_MOTOR;
-						LOGGER_LOG("Entering motor menu for motor %d.\n\n", p_task_menu_dta->current_motor);
+						displayClear();
+						snprintf(menu_str, sizeof(menu_str), "Motor %u", (p_task_menu_dta->current_motor+1));
+						displayCharPositionWrite(0, 0);
+						displayStringWrite(menu_str);
+						snprintf(menu_str, sizeof(menu_str), "%s, %u, %s", (m->power == ON ? "ON" : "OFF"), m->speed, (m->spin == LEFT ? "LEFT" : "RIGHT"));
+						displayCharPositionWrite(0, 1);
+						displayStringWrite(menu_str);
 					}
 
 					break;
@@ -225,27 +243,46 @@ void task_menu_update(void *parameters)
 							{
 								p_task_menu_dta->current_motor++;
 							}
-							LOGGER_LOG("Current motor changed to %d.\n\n", p_task_menu_dta->current_motor);
+							m = &p_task_menu_dta->motors[p_task_menu_dta->current_motor];
+							displayClear();
+							snprintf(menu_str, sizeof(menu_str), "Motor %u", (p_task_menu_dta->current_motor+1));
+							displayCharPositionWrite(0, 0);
+							displayStringWrite(menu_str);
+							snprintf(menu_str, sizeof(menu_str), "%s, %u, %s", (m->power == ON ? "ON" : "OFF"), m->speed, (m->spin == LEFT ? "LEFT" : "RIGHT"));
+							displayCharPositionWrite(0, 1);
+							displayStringWrite(menu_str);
 						}
 						else if (EV_MEN_ENT_ACTIVE == p_task_menu_dta->event)
 						{
 							p_task_menu_dta->state = ST_MEN_XX_POWER;
-							LOGGER_LOG("Entering power menu for motor %d.\n\n", p_task_menu_dta->current_motor);
+							displayClear();
+							snprintf(menu_str, sizeof(menu_str), "Motor %u", (p_task_menu_dta->current_motor+1));
+							displayCharPositionWrite(0, 0);
+							displayStringWrite(menu_str);
+							snprintf(menu_str, sizeof(menu_str), "Power: %s", (m->power == ON ? "ON" : "OFF"));
+							displayCharPositionWrite(0, 1);
+							displayStringWrite(menu_str);
 						}
 						else if (EV_MEN_ESC_ACTIVE == p_task_menu_dta->event)
 						{
 							p_task_menu_dta->state = ST_MEN_XX_MAIN;
-							LOGGER_LOG("Going back to main menu.\n\n");
 
+							displayClear();
 							/* Print motor states */
+							/* Hardcoded for <= 2 motors. */
 							for (uint8_t i = 0; i < MAX_MOTORS; i++) {
-							    motor_t *m = &p_task_menu_dta->motors[i];
-							    LOGGER_LOG("   motor[%u]: power = %s, speed = %u, spin = %s\r\n",
-							               	   i,
-							               	   (m->power == ON ? "ON" : "OFF"),
-							               	   m->speed,
-							               	   (m->spin == LEFT ? "LEFT" : "RIGHT")
-										   );
+								if (i < 2)
+								{
+									motor_t *m = &p_task_menu_dta->motors[i];
+									snprintf(menu_str, sizeof(menu_str), "M%u: %s,%u,%s", (i+1), (m->power == ON ? "ON" : "OFF"), m->speed, (m->spin == LEFT ? "LEFT" : "RIGHT"));
+									displayCharPositionWrite(0, i);
+									displayStringWrite(menu_str);
+								}
+								else
+								{
+									displayCharPositionWrite(0, 0);
+									displayStringWrite("Too many motors.");
+								}
 							}
 						}
 					}
@@ -260,17 +297,35 @@ void task_menu_update(void *parameters)
 
 						if (EV_MEN_NEX_ACTIVE == p_task_menu_dta->event) {
 							p_task_menu_dta->state = ST_MEN_XX_SPEED;
-							LOGGER_LOG("Switching to speed menu for motor %d.\n\n", p_task_menu_dta->current_motor);
+							displayClear();
+							snprintf(menu_str, sizeof(menu_str), "Motor %u", (p_task_menu_dta->current_motor+1));
+							displayCharPositionWrite(0, 0);
+							displayStringWrite(menu_str);
+							snprintf(menu_str, sizeof(menu_str), "Speed: %d", m->speed);
+							displayCharPositionWrite(0, 1);
+							displayStringWrite(menu_str);
 						}
 						else if (EV_MEN_ENT_ACTIVE == p_task_menu_dta->event)
 						{
 							p_task_menu_dta->state = ST_MEN_XX_POWER_OPT;
-							LOGGER_LOG("Entering power setup menu for motor %d.\n\n", p_task_menu_dta->current_motor);
+							displayClear();
+							snprintf(menu_str, sizeof(menu_str), "New M%u Power", (p_task_menu_dta->current_motor+1));
+							displayCharPositionWrite(0, 0);
+							displayStringWrite(menu_str);
+							snprintf(menu_str, sizeof(menu_str), "%s", (m->power == ON ? "ON" : "OFF"));
+							displayCharPositionWrite(0, 1);
+							displayStringWrite(menu_str);
 						}
 						else if (EV_MEN_ESC_ACTIVE == p_task_menu_dta->event)
 						{
 							p_task_menu_dta->state = ST_MEN_XX_MOTOR;
-							LOGGER_LOG("Going back to motor menu for motor %d.\n\n", p_task_menu_dta->current_motor);
+							displayClear();
+							snprintf(menu_str, sizeof(menu_str), "Motor %u", (p_task_menu_dta->current_motor+1));
+							displayCharPositionWrite(0, 0);
+							displayStringWrite(menu_str);
+							snprintf(menu_str, sizeof(menu_str), "%s, %u, %s", (m->power == ON ? "ON" : "OFF"), m->speed, (m->spin == LEFT ? "LEFT" : "RIGHT"));
+							displayCharPositionWrite(0, 1);
+							displayStringWrite(menu_str);
 						}
 					}
 
@@ -284,17 +339,35 @@ void task_menu_update(void *parameters)
 
 						if (EV_MEN_NEX_ACTIVE == p_task_menu_dta->event) {
 							p_task_menu_dta->state = ST_MEN_XX_SPIN;
-							LOGGER_LOG("Switching to spin menu for motor %d.\n\n", p_task_menu_dta->current_motor);
+							displayClear();
+							snprintf(menu_str, sizeof(menu_str), "Motor %u", (p_task_menu_dta->current_motor+1));
+							displayCharPositionWrite(0, 0);
+							displayStringWrite(menu_str);
+							snprintf(menu_str, sizeof(menu_str), "Spin: %s", (m->spin == RIGHT ? "RIGHT" : "LEFT"));
+							displayCharPositionWrite(0, 1);
+							displayStringWrite(menu_str);
 						}
 						else if (EV_MEN_ENT_ACTIVE == p_task_menu_dta->event)
 						{
 							p_task_menu_dta->state = ST_MEN_XX_SPEED_OPT;
-							LOGGER_LOG("Entering speed setup menu for motor %d.\n\n", p_task_menu_dta->current_motor);
+							displayClear();
+							snprintf(menu_str, sizeof(menu_str), "New M%u Speed", (p_task_menu_dta->current_motor+1));
+							displayCharPositionWrite(0, 0);
+							displayStringWrite(menu_str);
+							snprintf(menu_str, sizeof(menu_str), "%d", m->speed);
+							displayCharPositionWrite(0, 1);
+							displayStringWrite(menu_str);
 						}
 						else if (EV_MEN_ESC_ACTIVE == p_task_menu_dta->event)
 						{
 							p_task_menu_dta->state = ST_MEN_XX_MOTOR;
-							LOGGER_LOG("Going back to motor menu for motor %d.\n\n", p_task_menu_dta->current_motor);
+							displayClear();
+							snprintf(menu_str, sizeof(menu_str), "Motor %u", (p_task_menu_dta->current_motor+1));
+							displayCharPositionWrite(0, 0);
+							displayStringWrite(menu_str);
+							snprintf(menu_str, sizeof(menu_str), "%s, %u, %s", (m->power == ON ? "ON" : "OFF"), m->speed, (m->spin == LEFT ? "LEFT" : "RIGHT"));
+							displayCharPositionWrite(0, 1);
+							displayStringWrite(menu_str);
 						}
 					}
 
@@ -308,17 +381,35 @@ void task_menu_update(void *parameters)
 
 						if (EV_MEN_NEX_ACTIVE == p_task_menu_dta->event) {
 							p_task_menu_dta->state = ST_MEN_XX_POWER;
-							LOGGER_LOG("Switching to power menu for motor %d.\n\n", p_task_menu_dta->current_motor);
+							displayClear();
+							snprintf(menu_str, sizeof(menu_str), "Motor %u", (p_task_menu_dta->current_motor+1));
+							displayCharPositionWrite(0, 0);
+							displayStringWrite(menu_str);
+							snprintf(menu_str, sizeof(menu_str), "Power: %s", (m->power == ON ? "ON" : "OFF"));
+							displayCharPositionWrite(0, 1);
+							displayStringWrite(menu_str);
 						}
 						else if (EV_MEN_ENT_ACTIVE == p_task_menu_dta->event)
 						{
 							p_task_menu_dta->state = ST_MEN_XX_SPIN_OPT;
-							LOGGER_LOG("Entering spin setup menu for motor %d.\n\n", p_task_menu_dta->current_motor);
+							displayClear();
+							snprintf(menu_str, sizeof(menu_str), "New M%u Spin", (p_task_menu_dta->current_motor+1));
+							displayCharPositionWrite(0, 0);
+							displayStringWrite(menu_str);
+							snprintf(menu_str, sizeof(menu_str), "%s", (m->spin == RIGHT ? "RIGHT" : "LEFT"));
+							displayCharPositionWrite(0, 1);
+							displayStringWrite(menu_str);
 						}
 						else if (EV_MEN_ESC_ACTIVE == p_task_menu_dta->event)
 						{
 							p_task_menu_dta->state = ST_MEN_XX_MOTOR;
-							LOGGER_LOG("Going back to motor menu for motor %d.\n\n", p_task_menu_dta->current_motor);
+							displayClear();
+							snprintf(menu_str, sizeof(menu_str), "Motor %u", (p_task_menu_dta->current_motor+1));
+							displayCharPositionWrite(0, 0);
+							displayStringWrite(menu_str);
+							snprintf(menu_str, sizeof(menu_str), "%s, %u, %s", (m->power == ON ? "ON" : "OFF"), m->speed, (m->spin == LEFT ? "LEFT" : "RIGHT"));
+							displayCharPositionWrite(0, 1);
+							displayStringWrite(menu_str);
 						}
 					}
 
@@ -331,20 +422,38 @@ void task_menu_update(void *parameters)
 						p_task_menu_dta->flag = false;
 
 						if (EV_MEN_NEX_ACTIVE == p_task_menu_dta->event) {
-							p_task_menu_dta->motors[p_task_menu_dta->current_motor].power_tmp = (p_task_menu_dta->motors[p_task_menu_dta->current_motor].power_tmp + 1) % 2;
-							LOGGER_LOG("Power value changed to %s.\n\n", (p_task_menu_dta->motors[p_task_menu_dta->current_motor].power_tmp == ON ? "ON" : "OFF"));
+							m->power_tmp = (m->power_tmp + 1) % 2;
+							displayClear();
+							snprintf(menu_str, sizeof(menu_str), "New M%u Power", (p_task_menu_dta->current_motor+1));
+							displayCharPositionWrite(0, 0);
+							displayStringWrite(menu_str);
+							snprintf(menu_str, sizeof(menu_str), "%s", (m->power_tmp == ON ? "ON" : "OFF"));
+							displayCharPositionWrite(0, 1);
+							displayStringWrite(menu_str);
 						}
 						else if (EV_MEN_ENT_ACTIVE == p_task_menu_dta->event)
 						{
-							p_task_menu_dta->motors[p_task_menu_dta->current_motor].power = p_task_menu_dta->motors[p_task_menu_dta->current_motor].power_tmp;
-							LOGGER_LOG("Power value assigned. Motor %d is now %s.\n\n", p_task_menu_dta->current_motor, (p_task_menu_dta->motors[p_task_menu_dta->current_motor].power == ON ? "ON" : "OFF"));
+							m->power = m->power_tmp;
+							displayClear();
+							snprintf(menu_str, sizeof(menu_str), "New M%u Power", (p_task_menu_dta->current_motor+1));
+							displayCharPositionWrite(0, 0);
+							displayStringWrite(menu_str);
+							snprintf(menu_str, sizeof(menu_str), "%s (updated)", (m->power == ON ? "ON" : "OFF"));
+							displayCharPositionWrite(0, 1);
+							displayStringWrite(menu_str);
 							// Here we would raise an event for the motor actuator (output pins).
 						}
 						else if (EV_MEN_ESC_ACTIVE == p_task_menu_dta->event)
 						{
 							p_task_menu_dta->state = ST_MEN_XX_POWER;
-							p_task_menu_dta->motors[p_task_menu_dta->current_motor].power_tmp = p_task_menu_dta->motors[p_task_menu_dta->current_motor].power;
-							LOGGER_LOG("Going back to power menu for motor %d.\n\n", p_task_menu_dta->current_motor);
+							m->power_tmp = m->power;
+							displayClear();
+							snprintf(menu_str, sizeof(menu_str), "Motor %u", (p_task_menu_dta->current_motor+1));
+							displayCharPositionWrite(0, 0);
+							displayStringWrite(menu_str);
+							snprintf(menu_str, sizeof(menu_str), "Power: %s", (m->power == ON ? "ON" : "OFF"));
+							displayCharPositionWrite(0, 1);
+							displayStringWrite(menu_str);
 						}
 					}
 
@@ -357,20 +466,38 @@ void task_menu_update(void *parameters)
 						p_task_menu_dta->flag = false;
 
 						if (EV_MEN_NEX_ACTIVE == p_task_menu_dta->event) {
-							p_task_menu_dta->motors[p_task_menu_dta->current_motor].speed_tmp = (p_task_menu_dta->motors[p_task_menu_dta->current_motor].speed_tmp + 1) % 10;
-							LOGGER_LOG("Speed value changed to %d.\n\n", p_task_menu_dta->motors[p_task_menu_dta->current_motor].speed_tmp);
+							m->speed_tmp = (m->speed_tmp + 1) % 10;
+							displayClear();
+							snprintf(menu_str, sizeof(menu_str), "New M%u Speed", (p_task_menu_dta->current_motor+1));
+							displayCharPositionWrite(0, 0);
+							displayStringWrite(menu_str);
+							snprintf(menu_str, sizeof(menu_str), "%d", m->speed_tmp);
+							displayCharPositionWrite(0, 1);
+							displayStringWrite(menu_str);
 						}
 						else if (EV_MEN_ENT_ACTIVE == p_task_menu_dta->event)
 						{
-							p_task_menu_dta->motors[p_task_menu_dta->current_motor].speed = p_task_menu_dta->motors[p_task_menu_dta->current_motor].speed_tmp;
-							LOGGER_LOG("Speed value assigned. Motor %d's speed is now %d.\n\n", p_task_menu_dta->current_motor, p_task_menu_dta->motors[p_task_menu_dta->current_motor].speed);
+							m->speed = m->speed_tmp;
+							displayClear();
+							snprintf(menu_str, sizeof(menu_str), "New M%u Speed", (p_task_menu_dta->current_motor+1));
+							displayCharPositionWrite(0, 0);
+							displayStringWrite(menu_str);
+							snprintf(menu_str, sizeof(menu_str), "%d (updated)", m->speed);
+							displayCharPositionWrite(0, 1);
+							displayStringWrite(menu_str);
 							// Here we would raise an event for the motor actuator (output pins).
 						}
 						else if (EV_MEN_ESC_ACTIVE == p_task_menu_dta->event)
 						{
 							p_task_menu_dta->state = ST_MEN_XX_SPEED;
-							p_task_menu_dta->motors[p_task_menu_dta->current_motor].speed_tmp = p_task_menu_dta->motors[p_task_menu_dta->current_motor].speed;
-							LOGGER_LOG("Going back to speed menu for motor %d.\n\n", p_task_menu_dta->current_motor);
+							m->speed_tmp = m->speed;
+							displayClear();
+							snprintf(menu_str, sizeof(menu_str), "Motor %u", (p_task_menu_dta->current_motor+1));
+							displayCharPositionWrite(0, 0);
+							displayStringWrite(menu_str);
+							snprintf(menu_str, sizeof(menu_str), "Speed: %d", m->speed);
+							displayCharPositionWrite(0, 1);
+							displayStringWrite(menu_str);
 						}
 					}
 
@@ -383,20 +510,37 @@ void task_menu_update(void *parameters)
 						p_task_menu_dta->flag = false;
 
 						if (EV_MEN_NEX_ACTIVE == p_task_menu_dta->event) {
-							p_task_menu_dta->motors[p_task_menu_dta->current_motor].spin_tmp = (p_task_menu_dta->motors[p_task_menu_dta->current_motor].spin_tmp + 1) % 2;
-							LOGGER_LOG("Spin value changed to %s.\n\n", (p_task_menu_dta->motors[p_task_menu_dta->current_motor].spin_tmp == RIGHT ? "RIGHT" : "LEFT"));
+							m->spin_tmp = (m->spin_tmp + 1) % 2;
+							displayClear();
+							snprintf(menu_str, sizeof(menu_str), "New M%u Spin", (p_task_menu_dta->current_motor+1));
+							displayCharPositionWrite(0, 0);
+							displayStringWrite(menu_str);
+							snprintf(menu_str, sizeof(menu_str), "%s", (m->spin_tmp == RIGHT ? "RIGHT" : "LEFT"));
+							displayCharPositionWrite(0, 1);
+							displayStringWrite(menu_str);
 						}
 						else if (EV_MEN_ENT_ACTIVE == p_task_menu_dta->event)
 						{
-							p_task_menu_dta->motors[p_task_menu_dta->current_motor].spin = p_task_menu_dta->motors[p_task_menu_dta->current_motor].spin_tmp;
-							LOGGER_LOG("Spin value assigned. Motor %d is now spinning %s.\n\n", p_task_menu_dta->current_motor, (p_task_menu_dta->motors[p_task_menu_dta->current_motor].spin == RIGHT ? "RIGHT" : "LEFT"));
+							m->spin = m->spin_tmp;
+							displayClear();
+							snprintf(menu_str, sizeof(menu_str), "New M%u Spin", (p_task_menu_dta->current_motor+1));
+							displayCharPositionWrite(0, 0);
+							displayStringWrite(menu_str);
+							snprintf(menu_str, sizeof(menu_str), "%s (updated)", (m->spin == RIGHT ? "RIGHT" : "LEFT"));
+							displayCharPositionWrite(0, 1);
+							displayStringWrite(menu_str);
 							// Here we would raise an event for the motor actuator (output pins).
 						}
 						else if (EV_MEN_ESC_ACTIVE == p_task_menu_dta->event)
 						{
 							p_task_menu_dta->state = ST_MEN_XX_SPIN;
-							p_task_menu_dta->motors[p_task_menu_dta->current_motor].spin_tmp = p_task_menu_dta->motors[p_task_menu_dta->current_motor].spin;
-							LOGGER_LOG("Going back to spin menu for motor %d.\n\n", p_task_menu_dta->current_motor);
+							m->spin_tmp = m->spin;
+							snprintf(menu_str, sizeof(menu_str), "Motor %u", (p_task_menu_dta->current_motor+1));
+							displayCharPositionWrite(0, 0);
+							displayStringWrite(menu_str);
+							snprintf(menu_str, sizeof(menu_str), "Spin: %s", (m->spin == RIGHT ? "RIGHT" : "LEFT"));
+							displayCharPositionWrite(0, 1);
+							displayStringWrite(menu_str);
 						}
 					}
 

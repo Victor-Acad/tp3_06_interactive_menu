@@ -1,2 +1,2 @@
-../app/src/task_menu.c:88:6:task_menu_init	56	static,ignoring_inline_asm
-../app/src/task_menu.c:144:6:task_menu_update	64	static,ignoring_inline_asm
+../app/src/task_menu.c:88:6:task_menu_init	80	static,ignoring_inline_asm
+../app/src/task_menu.c:156:6:task_menu_update	72	static,ignoring_inline_asm
